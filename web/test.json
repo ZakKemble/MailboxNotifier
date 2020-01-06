@@ -1,0 +1,72 @@
+{
+	"key":	"aabbccddeeff11223344556677889900abcdef12",
+	"millis":	13753,
+	"firmware":	{
+		"version":	"1.0.0 200103",
+		"built":	"Jan 3 2020 00:49:41"
+	},
+	"network":	{
+		"signal":	13,
+		"biterror":	99,
+		"ip":	"10.224.58.10",
+		"number":	"07123456789",
+		"imei":	"860000000000009",
+		"iccid":	"8944300000000000008"
+	},
+	"battery":	{
+		"voltage":	3978,
+		"percent":	72,
+		"vlm":	0
+	},
+	"balance":	{
+		"state":	1,
+		"message":	"Your balance is ?1.41",
+		"datetime":	"2020/01/03,22:27:28+00"
+	},
+	"reasons":	{
+		"newmail":	0,
+		"endcharge":	0,
+		"trackmode":	1,
+		"switchstuck":	0
+	},
+	"counts":	{
+		"success":	23,
+		"failure":	0,
+		"timeout":	0
+	},
+	"environment":	{
+		"temperature":	33.85,
+		"pressure":	1020.02703125,
+		"humidity":	23.396484375
+	},
+	"track":	{
+		"gps":  {
+			"fix":	3,
+			"sattotal":	8,
+			"sattrack":	4
+		},
+		"bds":  {
+			"fix":	3,
+			"sattotal":	3,
+			"sattrack":	2
+		},
+		"quality":	2,
+		"sattrack":	6,
+		"latitude": -33.8567844,
+		"longitude":	151.213108,
+		"altitude":	-23.200000762939453,
+		"speed":	167.99800002574920654,
+		"course":	218.99000549316406,
+		"date":	{
+			"y":	19,
+			"m":	12,
+			"d":	18
+		},
+		"time":	{
+			"h":	15,
+			"m":	36,
+			"s":	45,
+			"ms":	0
+		}
+	}
+}

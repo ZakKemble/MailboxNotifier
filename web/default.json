@@ -1,0 +1,72 @@
+{
+	"key":	"",
+	"millis":	0,
+	"firmware":	{
+		"version":	"",
+		"built":	""
+	},
+	"network":	{
+		"signal":	0,
+		"biterror":	0,
+		"ip":	"",
+		"number":	"",
+		"imei":	"",
+		"iccid":	""
+	},
+	"battery":	{
+		"voltage":	0,
+		"percent":	0,
+		"vlm":	0
+	},
+	"balance":	{
+		"state":	0,
+		"message":	"",
+		"datetime":	""
+	},
+	"reasons":	{
+		"newmail":	0,
+		"endcharge":	0,
+		"trackmode":	0,
+		"switchstuck":	0
+	},
+	"counts":	{
+		"success":	0,
+		"failure":	0,
+		"timeout":	0
+	},
+	"environment":	{
+		"temperature":	0.0,
+		"humidity":	0.0,
+		"pressure":	0.0
+	},
+	"track":	{
+		"gps":  {
+			"fix":	0,
+			"sattotal":	0,
+			"sattrack":	0
+		},
+		"bds":  {
+			"fix":	0,
+			"sattotal":	0,
+			"sattrack":	0
+		},
+		"quality":	0,
+		"sattrack":	0,
+		"latitude":	0,
+		"longitude":	0,
+		"altitude":	0,
+		"speed":	0,
+		"course":	0,
+		"date":	{
+			"y":	0,
+			"m":	0,
+			"d":	0
+		},
+		"time":	{
+			"h":	0,
+			"m":	0,
+			"s":	0,
+			"ms":	0
+		}
+	}
+}

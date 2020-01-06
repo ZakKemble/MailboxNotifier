@@ -1,0 +1,3 @@
+[submodule "GPRS_C_SDK"]
+	path = GPRS_C_SDK
+	url = https://github.com/zkemble/GPRS_C_SDK
