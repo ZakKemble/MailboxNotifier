@@ -28,13 +28,15 @@
 
 // Fuses:
 // WDTCFG: 0x00 (default)
-// BODCFG: 0x0C
-// OSCCFG: 0x01 (default)
+// BODCFG: 0x0C (BOD enabled with wake-up halted until ready)
+// OSCCFG: 0x02 (default)
 // SYSCFG0: 0xC4 (default)
 // SYSCFG1: 0x07 (default)
 // APPEND: 0x00 (default)
 // BOOTEND: 0x00 (default)
 // LOCKBIT: 0x00 (default)
+
+#define BAUDRATE			9600UL
 
 #define VLOWBATT			3500
 #define VCHARGEDBATT		4050
@@ -50,19 +52,14 @@
 #define LOWBATT_VAL			(uint8_t)((((float)VREF_VAL / VLOWBATT) * 255.0) + 0.5)
 #define CHARGEDBATT_VAL		(uint8_t)((((float)VREF_VAL / VCHARGEDBATT) * 255.0) + 0.5)
 
+#define BAUD_VAL			(uint16_t)((64 * F_CPU) / (16 * BAUDRATE))
+
+#define TMR_MS(ms)			((uint16_t)(((float)ms / 16) + 0.5)) // PIT increments every 16ms
+
 #define STATE_IDLE		0
 #define STATE_WAIT		1
 #define STATE_POWEROFF	2
 #define STATE_DELAY		3
-
-#define PORT_OUT1		_BV(1)
-#define PORT_DIR1		_BV(1)
-#define PORT_DIR2		_BV(2)
-#define PORT_IN2		_BV(2)
-#define PORT_IN3		_BV(3)
-#define PORT_IN7		_BV(7)
-
-#define BAUD_VAL ((42<<5) | (66>>1)) // 9600 @ 2.66MHz
 
 #define CMDDATA_BUFF	8
 
@@ -160,21 +157,24 @@ static trigChange_t trig_process(trigger_t* trig, uint8_t in, uint16_t now)
 int main(void)
 {
 	// TODO Watchdog
-	//WDT.CTRLA = 0x0A; // 4 seconds
+	//CCP = CCP_IOREG_gc;
+	//WDT.CTRLA = PERIOD_4KCLK_gc; // 4 seconds
 
 	// Brown-out
+	//CCP = CCP_IOREG_gc;
 	//BOD.CTRLA = BOD_ACTIVE_ENWAKE_gc | BOD_SLEEP_ENABLED_gc; // CCP protected, already set by fuse
 	BOD.CTRLB = BOD_LVL_BODLEVEL2_gc; // 2.60V
 	BOD.VLMCTRLA = BOD_VLMLVL_25ABOVE_gc; // 3.25V
 	BOD.INTCTRL = BOD_VLMIE_bm;
 
 	// Clocks
-	// Default clock is 16MHz / 6 = 2.66MHz
-	//clock_prescale_set(CPU_DIV);
+	// Default clock is 20MHz / 6 = 3.33MHz
+	//CCP = CCP_IOREG_gc;
+	//CLKCTRL.MCLKCTRLB = CLKCTRL_PDIV_6X_gc | CLKCTRL_PEN_bm;
 
 	// Configure pins
-	PORTA.OUT = PORT_OUT1;
-	PORTA.DIR = PORT_DIR1;
+	VPORTA.OUT = PIN1_bm;
+	VPORTA.DIR = PIN1_bm;
 	PORTA.PIN2CTRL = PORT_PULLUPEN_bm | PORT_ISC_FALLING_gc;
 	PORTA.PIN3CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc; // FALLING/RISING interrupt doesn't work in sleep mode for this pin
 	PORTA.PIN7CTRL = PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
@@ -252,42 +252,42 @@ int main(void)
 	{
 		cli();
 		interrupt = 0;
-		uint8_t port = ~PORTA.IN;
+		uint8_t port = ~VPORTA.IN;
 		uint16_t tmpNow = now;
 		sei();
 
 		// Button press
-		if(trig_process(&button, (port & PORT_IN3), tmpNow) == TRIG_CHANGE_ACTIVE)
+		if(trig_process(&button, (port & PIN3_bm), tmpNow) == TRIG_CHANGE_ACTIVE)
 		{
 			reasons.trackMode = !reasons.trackMode;
 			if(!reasons.trackMode)
 			{
-				powerOnOffTime = tmpNow - TIMEOUT + 940; // Give 15 seconds to shutdown
+				powerOnOffTime = tmpNow - TIMEOUT + TMR_MS(15000); // Give 15 seconds to shutdown
 				retryCount = RETRY_COUNT;
 			}
 		}
 
 		// Charge complete
-		if(trig_process(&charging, (port & PORT_IN7), tmpNow) == TRIG_CHANGE_DEACTIVE)
+		if(trig_process(&charging, (port & PIN7_bm), tmpNow) == TRIG_CHANGE_DEACTIVE)
 		{
 			vlmDetected = 0;
 
 			// Only send a charge complete notification once, then wait until the battery voltage drops below VCHARGEDBATT before allowing another notification
-			// NOTE: A charge complete notification is sent when charging stops, even if the battery is not full
+			// NOTE: A charge complete notification is sent when charging stops, even if the battery is not full (like from removing USB power)
 			if(!chargeComplete)
 				reasons.endCharging = 1;
 			chargeComplete = 1;
 		}
 
 		// Mail trigger
-		if(trig_process(&mail, (port & PORT_IN2), tmpNow) == TRIG_CHANGE_ACTIVE)
+		if(trig_process(&mail, (port & PIN2_bm), tmpNow) == TRIG_CHANGE_ACTIVE)
 			reasons.newMail = 1;
 
 		// Mail switch stuck
 		if(
-			(port & PORT_IN2) &&
+			(port & PIN2_bm) &&
 			mail.state == TRIG_ACTIVE &&
-			(uint16_t)(tmpNow - mail.time) >= 940 // 15 seconds
+			(uint16_t)(tmpNow - mail.time) >= TMR_MS(15000) // 15 seconds
 		)
 		{
 			mail.state = TRIG_DISABLE;
@@ -297,27 +297,27 @@ int main(void)
 				reasons.switchStuck = 1;
 			switchStuck = 1;
 			PORTA.PIN2CTRL &= ~(PORT_PULLUPEN_bm | PORT_ISC_FALLING_gc);
-			PORTA.DIR |= PORT_DIR2;
+			VPORTA.DIR |= PIN2_bm;
 		}
 
 		// Stuck switch stuff
-		if(switchStuck && (forceCheckStuck || (uint16_t)(tmpNow - checkStuckTime) >= 128)) // 2 secs
+		if(switchStuck && (forceCheckStuck || (uint16_t)(tmpNow - checkStuckTime) >= TMR_MS(2000))) // 2 secs
 		{
 			checkStuckTime = tmpNow;
 			forceCheckStuck = 0;
 
 			PORTA.PIN2CTRL |= PORT_PULLUPEN_bm;
-			PORTA.DIR &= ~PORT_DIR2;
+			VPORTA.DIR &= ~PIN2_bm;
 			//cli();
-			//CCP = 0xD8;
-			//CLKCTRL.MCLKCTRLB |= 0x08;
+			//CCP = CCP_IOREG_gc;
+			//CLKCTRL.MCLKCTRLB = CLKCTRL_PDIV_64X_gc | CLKCTRL_PEN_bm;
 			// Ideally we would downclock during this delay, but then UART would mess up
 			// TODO only do this check when A9G is powered off?
 			_delay_us(25);
-			//CCP = 0xD8;
-			//CLKCTRL.MCLKCTRLB &= ~0x08;
+			//CCP = CCP_IOREG_gc;
+			//CLKCTRL.MCLKCTRLB = CLKCTRL_PDIV_6X_gc | CLKCTRL_PEN_bm;
 			//sei();
-			if(PORTA.IN & PORT_IN2) // Has pin input gone high? Then the switch has opened and no longer stuck
+			if(VPORTA.IN & PIN2_bm) // Has pin input gone high? Then the switch has opened and no longer stuck
 			{
 				reasons.switchStuck = 0;
 				switchStuck = 0;
@@ -327,7 +327,7 @@ int main(void)
 			else // Still stuck
 			{
 				PORTA.PIN2CTRL &= ~PORT_PULLUPEN_bm;
-				PORTA.DIR |= PORT_DIR2;
+				VPORTA.DIR |= PIN2_bm;
 			}
 		}
 		
@@ -338,7 +338,7 @@ int main(void)
 			case STATE_DELAY:
 			
 				// After powring off the GSM module wait for at least 1 second so the capacitors and things discharge before turning it back on
-				if(poweroffDelay && (uint16_t)(tmpNow - powerOnOffTime) >= 64)
+				if(poweroffDelay && (uint16_t)(tmpNow - powerOnOffTime) >= TMR_MS(1000))
 				{
 					poweroffDelay = 0;
 					if(retryCount == 0)
@@ -346,7 +346,7 @@ int main(void)
 				}
 
 				// Wait 5 seconds if we're doing a retry
-				if(retryCount > 0 && (uint16_t)(tmpNow - lastRetryTime) >= 320)
+				if(retryCount > 0 && (uint16_t)(tmpNow - lastRetryTime) >= TMR_MS(5000))
 				{
 					if(!poweroffDelay)
 						state = STATE_IDLE;
@@ -399,11 +399,11 @@ int main(void)
 
 							// RTC/PIT update takes around 3ms to complete
 							// Downclock CPU to save power
-							CCP = 0xD8;
-							CLKCTRL.MCLKCTRLB |= 0x08; // Div 48
+							CCP = CCP_IOREG_gc;
+							CLKCTRL.MCLKCTRLB = CLKCTRL_PDIV_64X_gc | CLKCTRL_PEN_bm;
 							while(RTC.PITSTATUS & RTC_CTRLBUSY_bm);
-							CCP = 0xD8;
-							CLKCTRL.MCLKCTRLB &= ~0x08; // Div 6
+							CCP = CCP_IOREG_gc;
+							CLKCTRL.MCLKCTRLB = CLKCTRL_PDIV_6X_gc | CLKCTRL_PEN_bm;
 						}
 
 						//BOD.CTRLA = BOD_ACTIVE_ENWAKE_gc | BOD_SLEEP_DIS_gc;
@@ -418,13 +418,13 @@ int main(void)
 							RTC.PITCTRLA = RTC_PERIOD1_bm | RTC_PERIOD0_bm | RTC_PITEN_bm; // 16ms
 
 							cli();
-							CCP = 0xD8;
-							CLKCTRL.MCLKCTRLB |= 0x08; // Div 48
+							CCP = CCP_IOREG_gc;
+							CLKCTRL.MCLKCTRLB = CLKCTRL_PDIV_64X_gc | CLKCTRL_PEN_bm;
 							sei();
 							while(RTC.PITSTATUS & RTC_CTRLBUSY_bm);
 							cli();
-							CCP = 0xD8;
-							CLKCTRL.MCLKCTRLB &= ~0x08; // Div 6
+							CCP = CCP_IOREG_gc;
+							CLKCTRL.MCLKCTRLB = CLKCTRL_PDIV_6X_gc | CLKCTRL_PEN_bm;
 							sei();
 						}
 
@@ -460,7 +460,7 @@ int main(void)
 						// Battery is good, turn on GSM module
 						if(!vlmDetected)
 							clearVlmDetected = 1;
-						PORTA.OUT &= ~PORT_OUT1;
+						VPORTA.OUT &= ~PIN1_bm;
 						powerOnOffTime = tmpNow;
 						keepAliveTime = tmpNow;
 						uartNewData = 0;
@@ -487,7 +487,7 @@ int main(void)
 				{
 					// Module is taking too long doing stuff, force turn off and retry
 
-					PORTA.OUT |= PORT_OUT1;
+					VPORTA.OUT |= PIN1_bm;
 					if(timeoutCount < UINT_MAX)
 						timeoutCount++;
 					
@@ -530,7 +530,7 @@ int main(void)
 					// When the A9G is first turned on the inrush current to all the capacitors causes the battery voltage to drop by around 0.8V, even with a soft-start thing in place.
 					// This might trigger the VLM thing, so clear it after ~500ms if it wasn't already set before powering on.
 					// Maybe I should make the soft-start even more fluffy u.u
-					if(clearVlmDetected && (uint16_t)(tmpNow - powerOnOffTime) >= 30)
+					if(clearVlmDetected && (uint16_t)(tmpNow - powerOnOffTime) >= TMR_MS(480))
 					{
 						vlmDetected = 0;
 						clearVlmDetected = 0;
@@ -628,7 +628,7 @@ int main(void)
 				}
 				break;
 			case STATE_POWEROFF:
-				PORTA.OUT |= PORT_OUT1;
+				VPORTA.OUT |= PIN1_bm;
 				state = STATE_DELAY;
 				poweroffDelay = 1;
 				powerOnOffTime = tmpNow;
@@ -643,7 +643,7 @@ int main(void)
 
 ISR(PORTA_PORT_vect)
 {
-	PORTA.INTFLAGS = PORT_INT7_bm | PORT_INT3_bm | PORT_INT2_bm;
+	VPORTA.INTFLAGS = PORT_INT7_bm | PORT_INT3_bm | PORT_INT2_bm;
 	interrupt = 1;
 }
 

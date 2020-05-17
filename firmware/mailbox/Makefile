@@ -8,14 +8,26 @@ PROJECT=mailbox
 
 MCU=attiny402
 
-F_CPU=2660000UL
-CPU_DIV=clock_div_1
+F_CPU=3333333UL
 
 # 10MHz = 2.7V min
 # 5MHz = 1.8V min
 
+# COMPILER is passed from runmake.bat
+ifndef COMPILER
 COMPILER=
-AVRDUDE=avrdude
+endif
+
+# PYUPDI is passed from runmake.bat
+ifndef PYUPDI
+PYUPDI=pyupdi.py
+endif
+
+# UPDIPORT is passed from runmake.bat
+ifndef UPDIPORT
+UPDIPORT=changeme
+endif
+
 PREFIX=avr-
 
 SRC_DIR=.
@@ -67,8 +79,7 @@ LDFLAGS= \
 	-mmcu=$(MCU)
 
 DEFS= \
-	-DF_CPU=$(F_CPU) \
-	-DCPU_DIV=$(CPU_DIV)
+	-DF_CPU=$(F_CPU)
 
 LDLIBS= 
 
@@ -117,7 +128,7 @@ clean:
 	@rm -rf $(OBJ_DIR)/* $(BIN_DIR)/* 2>nul || true
 
 upload:
-	python pyupdi.py -d tiny402 -c com12 -b 19200 -f $(BIN_DIR)/$(HEX)
+	python $(PYUPDI) -d tiny402 -c $(UPDIPORT) -b 19200 -f $(BIN_DIR)/$(HEX)
 
 $(OBJ_DIR)/%.d: ;
 
